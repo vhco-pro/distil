@@ -31,9 +31,9 @@ jobs:
             entrypoint: /usr/sbin/nginx
             version-args: "-v"
             version-parse: "sed 's/.*nginx\\///'"
-          - name: redis
-            config: images/redis/apko.yaml
-            entrypoint: /usr/bin/redis-server
+          - name: valkey
+            config: images/valkey/apko.yaml
+            entrypoint: /usr/bin/valkey-server
             version-args: "--version"
             version-parse: "grep -oP 'v=\\K[^ ]+'"
 

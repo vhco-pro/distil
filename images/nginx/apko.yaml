@@ -5,7 +5,7 @@ contents:
     - https://packages.wolfi.dev/os
   packages:
     - wolfi-baselayout
-    - nginx
+    - nginx-mainline
 
 entrypoint:
   type: service-bundle

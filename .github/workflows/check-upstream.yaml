@@ -2,7 +2,7 @@ name: Check Upstream Releases
 
 on:
   schedule:
-    # Check daily — upstream releases are infrequent
+    # Check daily - upstream releases are infrequent
     - cron: "0 12 * * *"
   workflow_dispatch:
 
@@ -18,8 +18,8 @@ jobs:
         include:
           - name: nginx
             repo: nginx/nginx
-          - name: redis
-            repo: redis/redis
+          - name: valkey
+            repo: valkey-io/valkey
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1

@@ -5,20 +5,20 @@ contents:
     - https://packages.wolfi.dev/os
   packages:
     - wolfi-baselayout
-    - redis
-    - redis-cli
+    - valkey
+    - valkey-cli
 
 entrypoint:
-  command: /usr/bin/redis-server
+  command: /usr/bin/valkey-server
 
 accounts:
   groups:
-    - groupname: redis
+    - groupname: valkey
       gid: 65532
   users:
-    - username: redis
+    - username: valkey
       uid: 65532
-  run-as: redis
+  run-as: valkey
 
 paths:
   - path: /data
