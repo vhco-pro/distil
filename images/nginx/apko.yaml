@@ -1,0 +1,43 @@
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - wolfi-baselayout
+    - nginx
+
+entrypoint:
+  type: service-bundle
+  services:
+    nginx: /usr/sbin/nginx -c /etc/nginx/nginx.conf -g "daemon off;"
+
+accounts:
+  groups:
+    - groupname: nginx
+      gid: 10000
+  users:
+    - username: nginx
+      uid: 10000
+  run-as: nginx
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+
+paths:
+  - path: /run/nginx
+    type: directory
+    uid: 10000
+    gid: 10000
+    permissions: 0o755
+  - path: /var/lib/nginx/tmp
+    type: directory
+    uid: 10000
+    gid: 10000
+    permissions: 0o755
+
+work-dir: /usr/share/nginx
+
+archs:
+  - x86_64
+  - aarch64

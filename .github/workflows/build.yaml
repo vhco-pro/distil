@@ -1,0 +1,108 @@
+name: Build Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "images/**"
+  schedule:
+    # Rebuild daily at 06:00 UTC to pick up Wolfi package updates
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: nginx
+            config: images/nginx/apko.yaml
+            entrypoint: /usr/sbin/nginx
+            version-args: "-v"
+            version-parse: "sed 's/.*nginx\\///'"
+          - name: redis
+            config: images/redis/apko.yaml
+            entrypoint: /usr/bin/redis-server
+            version-args: "--version"
+            version-parse: "grep -oP 'v=\\K[^ ]+'"
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image with apko
+        uses: chainguard-images/actions/apko-publish@4cc7e323e19d69d9b9285a36cbcfb4a15651db17 # main 2026-03-29
+        id: apko
+        with:
+          config: ${{ matrix.config }}
+          tag: ghcr.io/${{ github.repository }}/${{ matrix.name }}:latest
+          archs: x86_64,aarch64
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/${{ matrix.name }}:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ matrix.name }}
+
+      - name: Grype vulnerability scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7
+        id: grype
+        with:
+          image: ghcr.io/${{ github.repository }}/${{ matrix.name }}:latest
+          fail-build: true
+          severity-cutoff: low
+          only-fixed: true
+
+      - name: Upload Grype SARIF
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: ${{ steps.grype.outputs.sarif }}
+          category: grype-${{ matrix.name }}
+
+      - name: Extract version and tag
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}/${{ matrix.name }}"
+          docker pull "${IMAGE}:latest" --platform linux/amd64
+
+          VERSION=$(docker run --rm --entrypoint ${{ matrix.entrypoint }} "${IMAGE}:latest" ${{ matrix.version-args }} 2>&1 | ${{ matrix.version-parse }} || true)
+
+          if [ -z "${VERSION}" ]; then
+            echo "::warning::Could not detect version for ${{ matrix.name }}, skipping version tag"
+            exit 0
+          fi
+
+          echo "Detected ${{ matrix.name }} version: ${VERSION}"
+
+          docker buildx imagetools create \
+            -t "${IMAGE}:${VERSION}" \
+            -t "${IMAGE}:$(date +%Y%m%d)" \
+            "${IMAGE}:latest"
